@@ -7,8 +7,7 @@ import altair as alt
 from streamlit_option_menu import option_menu
 import pydeck as pdk
 import geopandas
-from bs4 import BeautifulSoup
-import os
+
 
 # Acknowledgements:
 # "Global.health Monkeypox (accessed on YYYY-MM-DD)"
@@ -35,8 +34,7 @@ selected = option_menu(None, ['Home', 'Maps', 'Resources', 'Sources'],
     styles = {'nav-link': {'--hover-color': '#8E6FF9'}}
 )
 
-# Page Title
-st.write('# Current Monkeypox (MPXV) Cases')
+
 
 
 # ---------- Loading Data --------- #
@@ -60,22 +58,23 @@ def load_cumulative_cases():
     df.rename(columns = {'Cumulative_cases': 'Cumulative Cases'}, inplace = True)
     return df
 
-df = load_full_data()
-cum_df = load_cumulative_cases()
+# Initializing dataframes 
+full_df = load_full_data() # Detailed data for each case
+cum_df = load_cumulative_cases() # Cumulative case data for each country
 
-#new_df = cum_df[cum_df['Country'].isin(['United States'])]
-
-# Displays date data was last updated
+# Gets date data was last updated
 date_df = pd.to_datetime(cum_df['Date'])
 date_df = date_df.sort_values(ascending = False)
 last_updated = list(date_df.dt.strftime('%b %d, %Y').head())[0]
 
 
-country_counts = df['Country'].value_counts().to_frame()
 
 
-st.write(f'Data last updated {last_updated}.')
-st.write("")
+
+country_counts = full_df['Country'].value_counts().to_frame()
+
+
+
 
 
 # ---------- Sidebar Filters ---------- #
@@ -99,6 +98,10 @@ new_df = cum_df[cum_df['Country'].isin(countries)]
 # ---------- Home Page ---------- #
 if selected == '"Home"':
 
+    # Page Header
+    st.write('# Current Monkeypox (MPXV) Cases')
+    st.write(f'Data last updated {last_updated}.')
+    st.write("") 
 
     nearest = alt.selection(type='single', nearest=True, on='mouseover',
                             fields=['Date'], empty='none')
@@ -147,32 +150,31 @@ if selected == '"Home"':
 
 
     country_selection = cum_df[cum_df['Country'].isin(countries)]
-    #country_counts = country_selection['Country'].value_counts().to_frame()
+    count_per_country = country_selection['Country'].value_counts().to_frame()
 
-    st.bar_chart(country_counts)
+    st.bar_chart(count_per_country)
 
+
+# ---------- Maps Page ---------- #
 if selected == '"Maps"':
-    map_df = geopandas.read_file('data/land_data/ne_50m_admin_0_countries.shp')
+
+    # Page Header
+    st.write('# Current Monkeypox (MPXV) Cases')
+    st.write(f'Data last updated {last_updated}.')
+    st.write("") 
+
+    map_df = geopandas.read_file('land_data/ne_50m_admin_0_countries.shp')
     map_df = map_df[['NAME', 'geometry']]
     st.set_option('deprecation.showPyplotGlobalUse', False)
 
-    #map_df.plot()
+    # Removing Antarctica from map
+    map_df.drop([map_df.index[239]], inplace = True)
+    
 
-    # CHANGE TO HAVE THIS SCRAPE THE DATA
-
-   
     
 
 
-    
-    # ALSO DO SAME THING BUT FOR US STATES DATA
-
-    #country_cases = country_cases[['Country', 'Cases']]
-
-    
-
-    # Fixing country name spelling differences (ex: USA vs United States)
-
+    # Fixing spelling differences between data sources
 
     map_df['NAME'] = np.where(map_df['NAME'] == 'United States of America', 'United States', map_df['NAME'])
     map_df['NAME'] = np.where(map_df['NAME'] == 'Bosnia and Herz.', 'Bosnia And Herzegovina', map_df['NAME'])
@@ -205,7 +207,6 @@ if selected == '"Maps"':
 
     merged['Cases'] = merged['Cases'].fillna(0)
 
-    #st.write(merged[['NAME', 'Cases']])
 
 
     # Set range for choropleth values
@@ -218,7 +219,7 @@ if selected == '"Maps"':
     # remove the axis
     ax.axis('off')
 
-    ax.set_title('Total Monkeypox Cases per Country', fontdict={'fontsize': '25', 'fontweight' : '3'})
+    ax.set_title('Total Monkeypox Cases per Country', fontdict={'fontsize': '25', 'fontweight' : '4'})
 
     # colorbar legend
     sm = plt.cm.ScalarMappable(cmap='Reds', norm=plt.Normalize(vmin=min, vmax=max))
@@ -226,52 +227,16 @@ if selected == '"Maps"':
     # empty array for data
     sm.set_array([])
 
-    fig.colorbar(sm, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 30)
+    # Displaying colorball legend and map 
+    fig.colorbar(sm, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 40)
 
-    merged.plot(column='Cases', cmap='Reds', linewidth=0.8, ax=ax, edgecolor='0.8')
+    merged.plot(column='Cases', cmap='Reds', linewidth=0.8, ax=ax, edgecolor='0.7')
 
-    st.write('## Global Case Data')
+    st.write('## Global Data')
     st.pyplot()
 
-
-
-    #for country in list(cum_df['Country'].unique()):
-        
-    #locations = cum_df[]
-
-
-    #for country in 
-    # st.write(cum_df[cum_df['Country'] == 'United States'].sum(axis = 0))
-  
-    # # st.set_option('deprecation.showPyplotGlobalUse', False)
-    # # st.pyplot()
-    # world = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
-    # world['2015'] = 1 #np.random.uniform(low=1., high=100., size=(177,))
-    # st.write(world)
-
-    # fig = plt.figure()
-    # ax = fig.add_axes([0, 0, 1, 1])
-    # ax.axis('off')
-
-    # world.plot(ax=ax, column='2015', scheme='quantiles')
-
-    # ax.margins(0)
-    # ax.apply_aspect()
-
-    # fig.set_size_inches(10, 5)
-
-    # st.pyplot()
-
-
-
-
-
-
-
-##### HEADER #####
-
-
-
+    st.write('## U.S. Data')
+    # ALSO DO SAME THING BUT FOR US STATES DATA
 
 
 
