@@ -1,3 +1,4 @@
+from itertools import count
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -10,12 +11,6 @@ import geopandas
 
 
 # Acknowledgements:
-# "Global.health Monkeypox (accessed on YYYY-MM-DD)"
-# Data GitHub: https://github.com/globaldothealth/monkeypox
-
-# maps data: http://www.naturalearthdata.com/downloads/110m-physical-vectors/
-#   might not use
-
 # cases data: https://www.cdc.gov/poxvirus/monkeypox/response/2022/world-map.html
 
 # -- CHANGES TO MAKE -- #
@@ -23,11 +18,23 @@ import geopandas
 
 
 
-
 # ---------- Setting Up Webpage ---------- #
 st.set_page_config(page_title = 'Monkeypox Visualization', page_icon = ':bar_chart:', layout = 'wide')
 
-# Navigation Bar
+# Hide hamburger menu
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+# Reduce padding above nav bar
+st.write('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
+
+# Navigation bar
 selected = option_menu(None, ['Home', 'Maps', 'Resources', 'Sources'], 
     icons=['bar-chart-line', 'geo-alt', 'clipboard-check', 'info-circle'], 
     menu_icon="cast", default_index=0, orientation="horizontal",
@@ -35,10 +42,7 @@ selected = option_menu(None, ['Home', 'Maps', 'Resources', 'Sources'],
 )
 
 
-
-
 # ---------- Loading Data --------- #
-
 # Saves cleaned data in cache to prevent reloading it every page refresh
 @st.cache
 def load_full_data():
@@ -67,52 +71,51 @@ date_df = pd.to_datetime(cum_df['Date'])
 date_df = date_df.sort_values(ascending = False)
 last_updated = list(date_df.dt.strftime('%b %d, %Y').head())[0]
 
-
-
-
-
+# Dataframe with countries and their current cases
 country_counts = full_df['Country'].value_counts().to_frame()
 
 
+# ---------- Sidebar ---------- #
+# Logo
+st.sidebar.image('content/Monkeypox_Dashboard.png')
+st.sidebar.write('')
+st.sidebar.write('')
 
-
-
-# ---------- Sidebar Filters ---------- #
+# Filters
 st.sidebar.header('Data Filters')
-
 countries = st.sidebar.multiselect('Country Selection', 
     options = list(cum_df['Country'].unique()),
     default = ['United States', 'Germany', 'Spain', 'United Kingdom']
 )
 
+st.sidebar.write('test  \nhi')
 
 
 
-# ---------- Visualizing Data ---------- #
-#st.bar_chart(data = df)
-
-new_df = cum_df[cum_df['Country'].isin(countries)]
-#new_df['Date'] = new_df['Date'].dt.strftime('%b %d, %Y')
 
 
 # ---------- Home Page ---------- #
-if selected == '"Home"':
+if selected == '"Home"' or selected == 'Home':
 
     # Page Header
     st.write('# Current Monkeypox (MPXV) Cases')
     st.write(f'Data last updated {last_updated}.')
-    st.write("") 
+    st.write('') 
 
+    # Gets data for user-selected countries
+    selection_df = cum_df[cum_df['Country'].isin(countries)]
+
+    # Line chart
     nearest = alt.selection(type='single', nearest=True, on='mouseover',
                             fields=['Date'], empty='none')
 
-    line_chart = alt.Chart(new_df).mark_line(interpolate = 'basis').encode(
+    line_chart = alt.Chart(selection_df).mark_line(interpolate = 'basis').encode(
         x = alt.X('Date', axis = alt.Axis(tickCount = 5)),
         y = 'Cumulative Cases',
         color = 'Country'
     )
 
-    selectors = alt.Chart(new_df).mark_point().encode(
+    selectors = alt.Chart(selection_df).mark_point().encode(
         x='Date',
         opacity=alt.value(0),
     ).add_selection(
@@ -127,7 +130,7 @@ if selected == '"Home"':
         text=alt.condition(nearest, 'Cumulative Cases', alt.value(' '))
     )
 
-    rules = alt.Chart(new_df).mark_rule(color='gray').encode(
+    rules = alt.Chart(selection_df).mark_rule(color='gray').encode(
         x='Date',
     ).transform_filter(
         nearest
@@ -142,21 +145,50 @@ if selected == '"Home"':
     st.write('## Cumulative Confirmed Cases')
     st.altair_chart(line_chart, use_container_width=True)
 
+    country_counts_dict = country_counts['Country'].to_dict()
+    if 'Democratic Republic Of The Congo' in country_counts_dict:
+        country_counts_dict['Dem. Rep. Congo'] = country_counts_dict['Democratic Republic Of The Congo']
+        country_counts_dict.pop('Democratic Republic Of The Congo')
+    country_counts_dict = sorted(country_counts_dict.items(), key = lambda x: x[1], reverse = True)
+    
 
-    st.write('## Cumulative Cases by Country')
-    st.write('#### Scroll the list to see more')
-    st.dataframe(country_counts)
+    names, values = [], []
+    for country, cases in country_counts_dict:
+        names.append(country)
+        values.append(cases)
+        
 
+    col1, col2 = st.columns(2)
+    # Cumulative cases table
+    with col1:
+        st.write('## Cumulative Cases by Country')
+        st.write('#### Scroll the list to see more')
+        counts_data = {'Country Name                    ': names, 'Cases  ': values}
+        counts_df = pd.DataFrame.from_dict(counts_data)
+        counts_df.index += 1
+        st.write(counts_df)
 
+    # Pie chart
+    with col2:
+        other_slice = sum([val for val in values[9:]])
+        names = names[:9]
+        values = values[:9]
+        names.append('Other')
+        values.append(other_slice)
 
-    country_selection = cum_df[cum_df['Country'].isin(countries)]
-    count_per_country = country_selection['Country'].value_counts().to_frame()
+        fig1, ax1 = plt.subplots()
+        ax1.pie(values, labels = names, autopct='%1.1f%%',
+                 shadow=True, startangle=90)
 
-    st.bar_chart(count_per_country)
+        # Setting background color
+        ax1.set_facecolor('#99c2ff')
+        
+        st.write('## Breakdown of Global Cases')
+        st.pyplot(fig1)
 
 
 # ---------- Maps Page ---------- #
-if selected == '"Maps"':
+if selected == '"Maps"' or selected == 'Maps':
 
     # Page Header
     st.write('# Current Monkeypox (MPXV) Cases')
@@ -170,10 +202,6 @@ if selected == '"Maps"':
     # Removing Antarctica from map
     map_df.drop([map_df.index[239]], inplace = True)
     
-
-    
-
-
     # Fixing spelling differences between data sources
 
     map_df['NAME'] = np.where(map_df['NAME'] == 'United States of America', 'United States', map_df['NAME'])
@@ -203,8 +231,6 @@ if selected == '"Maps"':
     
     merged = map_df.merge(other, how = 'left', left_on = 'NAME',
         right_on = 'Country')
-    
-
     merged['Cases'] = merged['Cases'].fillna(0)
 
 
@@ -215,11 +241,13 @@ if selected == '"Maps"':
 
     # create figure and axes for Matplotlib
     fig, ax = plt.subplots(1, figsize=(30, 10))
-
+ 
     # remove the axis
     ax.axis('off')
 
     ax.set_title('Total Monkeypox Cases per Country', fontdict={'fontsize': '25', 'fontweight' : '4'})
+
+
 
     # colorbar legend
     sm = plt.cm.ScalarMappable(cmap='Reds', norm=plt.Normalize(vmin=min, vmax=max))
@@ -232,6 +260,7 @@ if selected == '"Maps"':
 
     merged.plot(column='Cases', cmap='Reds', linewidth=0.8, ax=ax, edgecolor='0.7')
 
+
     st.write('## Global Data')
     st.pyplot()
 
@@ -239,6 +268,32 @@ if selected == '"Maps"':
     # ALSO DO SAME THING BUT FOR US STATES DATA
 
 
+# ---------- Sources Page ---------- #
+if selected in ('"Sources"', 'Sources'):
+    st.write('## Sources and Acknowledgments')
+    st.write('The visualizations in this dashboard are made possible by public data provided by various sources.')
+    st.write('')
+    st.write('')
+    st.write('Data on Monkeypox cases are provided by Global.health, and can be found at the following repository:')
+    st.write(f'https://github.com/globaldothealth/monkeypox (Last accessed: {last_updated})')
+    st.write('')
+    st.write('')
+    st.write('Geographic (GIS) data for map building is provided by Natural Earth at the following link:')
+    st.write('http://www.naturalearthdata.com/downloads/50m-cultural-vectors/')
+    st.write('')
+    st.write('')    
+    st.write('')
+    st.write('All data is used with permission under a CC-BY-4.0 license.')
+    st.write('')
+    st.write('')
+    st.write('')
+    st.write('')
+    st.write('')
+    st.write('')
+    st.write('')
+    st.write('---------------------------------------------------------')
+    st.write('Monkeypox Dashboard was created by Anthony Cusimano.')
+    st.write('Thank you for visiting this page, and please stay safe!')
 
 
 #st.sidebar.write("https://www.linkedin.com/in/anthonycusi/", color = 'gray')
