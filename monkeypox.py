@@ -6,6 +6,7 @@ import streamlit as st
 import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 import pydeck as pdk
 import geopandas
 
@@ -24,11 +25,13 @@ st.set_page_config(page_title = 'Monkeypox Visualization', page_icon = ':bar_cha
 # Hide hamburger menu
 hide_st_style = """
             <style>
-            #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
-            header {visibility: hidden;}
             </style>
             """
+            #MainMenu {visibility: hidden;}
+            #header {visibility: hidden;}
+
+
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # Reduce padding above nav bar
@@ -62,9 +65,18 @@ def load_cumulative_cases():
     df.rename(columns = {'Cumulative_cases': 'Cumulative Cases'}, inplace = True)
     return df
 
+@st.cache
+def load_total_cases():
+    df = pd.read_csv('https://raw.githubusercontent.com/globaldothealth/monkeypox/main/timeseries-confirmed.csv')
+
+    # Formatting information for readability
+    df.rename(columns = {'Cumulative_cases': 'Cumulative Cases'}, inplace = True)
+    return df
+
 # Initializing dataframes 
 full_df = load_full_data() # Detailed data for each case
 cum_df = load_cumulative_cases() # Cumulative case data for each country
+total_df = load_total_cases() # Cumulative global case data
 
 # Gets date data was last updated
 date_df = pd.to_datetime(cum_df['Date'])
@@ -87,10 +99,6 @@ countries = st.sidebar.multiselect('Country Selection',
     options = list(cum_df['Country'].unique()),
     default = ['United States', 'Germany', 'Spain', 'United Kingdom']
 )
-
-st.sidebar.write('test  \nhi')
-
-
 
 
 
@@ -142,7 +150,7 @@ if selected == '"Home"' or selected == 'Home':
         width=600, height=300
     ).configure_axisX(labelAngle = 90).interactive()
 
-    st.write('## Cumulative Confirmed Cases')
+    st.write('## Cumulative Cases by Country')
     st.altair_chart(line_chart, use_container_width=True)
 
     country_counts_dict = country_counts['Country'].to_dict()
@@ -157,19 +165,119 @@ if selected == '"Home"' or selected == 'Home':
         names.append(country)
         values.append(cases)
         
-
     col1, col2 = st.columns(2)
+
     # Cumulative cases table
     with col1:
-        st.write('## Cumulative Cases by Country')
-        st.write('#### Scroll the list to see more')
+        daily_increase = dict()
+
+        for country in cum_df['Country'].unique():
+            country_data = cum_df[cum_df['Country'] == country]
+            if country == 'Democratic Republic Of The Congo':
+                country = 'Dem. Rep. Congo'
+            if country == 'United Kingdom':
+                country = 'England'
+            daily_increase[country] = country_data.tail()['Cases'].loc[country_data.index[-1]]
+        
+        k = daily_increase.keys()
+        v = daily_increase.values()
+        increase_data = {'Country': k, 'Increase From Yesterday': v}
+        daily_increase = pd.DataFrame.from_dict(increase_data)
+
+        st.write('## Cumulative Case Table')
+        st.write('#### Select countries to directly compare:')
         counts_data = {'Country Name                    ': names, 'Cases  ': values}
         counts_df = pd.DataFrame.from_dict(counts_data)
-        counts_df.index += 1
-        st.write(counts_df)
+
+        merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                    ',
+            right_on = 'Country')
+        merged = merged.drop('Country', axis = 1)
+        
+        merged.index += 1
+
+
+
+
+        gb = GridOptionsBuilder.from_dataframe(merged)
+        #gb.configure_pagination(paginationAutoPageSize=True) #Add pagination
+        gb.configure_side_bar() #Add a sidebar
+        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren="Group checkbox select children") #Enable multi-row selection
+        gridOptions = gb.build()
+
+        grid_response = AgGrid(
+            merged,
+            gridOptions=gridOptions,
+            data_return_mode='AS_INPUT', 
+            update_mode='MODEL_CHANGED', 
+            fit_columns_on_grid_load=False,
+            theme='dark',
+            enable_enterprise_modules=True,
+            height=350, 
+            width='100%',
+            reload_data=True
+        )
+
+        data = grid_response['data']
+        selected = grid_response['selected_rows'] 
+        selected_df = pd.DataFrame(selected) #Pass the selected rows to a new dataframe df
+        
+ 
 
     # Pie chart
-    with col2:
+    with col2: 
+        if selected_df.shape[0] > 0:
+            st.write('')
+            st.write('')
+            st.write('')
+            st.write('')
+            st.write('')
+            st.write('#### Direct Comparison Table')
+            gb2 = GridOptionsBuilder.from_dataframe(selected_df)
+            gb2.configure_side_bar()
+            grid2Options = gb2.build()
+
+            grid2_response = AgGrid(
+                selected_df,
+                #gridOptions=grid2Options,
+                data_return_mode='AS_INPUT', 
+                update_mode='MODEL_CHANGED', 
+                #fit_columns_on_grid_load=False,
+                theme='dark',
+                #enable_enterprise_modules=True,
+                height=300
+            )
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        # Removing early dates with almost no cases
+        total_df = total_df.iloc[60:]
+        
+        st.write('## Total Cases Globally')
+        fig, ax = plt.subplots()
+        ax.plot(total_df['Date'], total_df['Cases'], label = 'Total', color = 'teal')
+        # ax.yaxis.set_label_position('right')
+        # ax.yaxis.tick_right()
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Daily Increase', color = 'teal')
+        ax.set(ylim=(0, 5000))
+        ax.tick_params(axis = 'y', labelcolor = 'teal')
+
+        
+        ax2 = ax.twinx()
+        ax2.plot(total_df['Date'], total_df['Cumulative Cases'], label = 'Daily Increase', color = 'purple')
+        # ax.yaxis.set_label_position('left')
+        # ax.yaxis.tick_left()
+        ax2.set_ylabel('Total Cases', color = 'purple')
+
+        ax2.tick_params(axis = 'y', labelcolor = 'purple')
+
+
+        fig.tight_layout()
+        st.pyplot(fig)
+
+
+    with col4:
         other_slice = sum([val for val in values[9:]])
         names = names[:9]
         values = values[:9]
@@ -178,11 +286,11 @@ if selected == '"Home"' or selected == 'Home':
 
         fig1, ax1 = plt.subplots()
         ax1.pie(values, labels = names, autopct='%1.1f%%',
-                 shadow=True, startangle=90)
+                    shadow=True, startangle=90)
 
         # Setting background color
         ax1.set_facecolor('#99c2ff')
-        
+
         st.write('## Breakdown of Global Cases')
         st.pyplot(fig1)
 
@@ -265,6 +373,7 @@ if selected == '"Maps"' or selected == 'Maps':
     st.pyplot()
 
     st.write('## U.S. Data')
+    st.write('Coming soon')
     # ALSO DO SAME THING BUT FOR US STATES DATA
 
 
