@@ -2,6 +2,8 @@ from itertools import count
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import matplotlib.dates as mdates
 import streamlit as st
 import numpy as np
 import altair as alt
@@ -38,11 +40,13 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 st.write('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
 
 # Navigation bar
-selected = option_menu(None, ['Home', 'Maps', 'Resources', 'Sources'], 
-    icons=['bar-chart-line', 'geo-alt', 'clipboard-check', 'info-circle'], 
+selected = option_menu(None, ['Home', 'Maps', 'Sources'], 
+    icons=['bar-chart-line', 'geo-alt', 'info-circle'], 
     menu_icon="cast", default_index=0, orientation="horizontal",
     styles = {'nav-link': {'--hover-color': '#8E6FF9'}}
 )
+
+#### Add Resources to first list and 'clipboard-check' to second list
 
 
 # ---------- Loading Data --------- #
@@ -151,6 +155,7 @@ if selected == '"Home"' or selected == 'Home':
     ).configure_axisX(labelAngle = 90).interactive()
 
     st.write('## Cumulative Cases by Country')
+    st.write('Select countries to visualize on the left sidebar.')
     st.altair_chart(line_chart, use_container_width=True)
 
     country_counts_dict = country_counts['Country'].to_dict()
@@ -186,16 +191,14 @@ if selected == '"Home"' or selected == 'Home':
 
         st.write('## Cumulative Case Table')
         st.write('#### Select countries to directly compare:')
-        counts_data = {'Country Name                    ': names, 'Cases  ': values}
+        counts_data = {'Country Name                                  ': names, 'Cases  ': values}
         counts_df = pd.DataFrame.from_dict(counts_data)
 
-        merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                    ',
+        merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                                  ',
             right_on = 'Country')
         merged = merged.drop('Country', axis = 1)
         
         merged.index += 1
-
-
 
 
         gb = GridOptionsBuilder.from_dataframe(merged)
@@ -255,22 +258,22 @@ if selected == '"Home"' or selected == 'Home':
         
         st.write('## Total Cases Globally')
         fig, ax = plt.subplots()
-        ax.plot(total_df['Date'], total_df['Cases'], label = 'Total', color = 'teal')
-        # ax.yaxis.set_label_position('right')
-        # ax.yaxis.tick_right()
+        ax.plot(total_df['Date'], total_df['Cumulative Cases'], label = 'Total Cases', color = 'purple')
+    
+        
         ax.set_xlabel('Date')
-        ax.set_ylabel('Daily Increase', color = 'teal')
-        ax.set(ylim=(0, 5000))
-        ax.tick_params(axis = 'y', labelcolor = 'teal')
+        ax.set_ylabel('Total Cases', color = 'purple')
+        ax.tick_params(axis = 'y', labelcolor = 'purple')
 
         
         ax2 = ax.twinx()
-        ax2.plot(total_df['Date'], total_df['Cumulative Cases'], label = 'Daily Increase', color = 'purple')
+        ax2.bar(total_df['Date'], total_df['Cases'], label = 'Daily Increase', color = 'teal')
         # ax.yaxis.set_label_position('left')
         # ax.yaxis.tick_left()
-        ax2.set_ylabel('Total Cases', color = 'purple')
+        ax2.set_ylabel('Daily Increase', color = 'teal')
+        ax2.set(ylim=(0, 5000))
 
-        ax2.tick_params(axis = 'y', labelcolor = 'purple')
+        ax2.tick_params(axis = 'y', labelcolor = 'teal')
 
 
         fig.tight_layout()
@@ -293,7 +296,38 @@ if selected == '"Home"' or selected == 'Home':
 
         st.write('## Breakdown of Global Cases')
         st.pyplot(fig1)
+    
+    col5, col6 = st.columns(2)
 
+    with col5:
+        gender_data = full_df[full_df['Gender'].isin(('male', 'female'))]['Gender']
+        males = len([person for person in gender_data.to_dict().values() if person == 'male'])
+        females = len([person for person in gender_data.to_dict().values() if person == 'female'])
+        gender_dict = {'Male': [males], 'Female': [females]}
+        gender_df = pd.DataFrame({'Gender': ['Male', 'Female'], 'Count': [males, females]})
+        
+        fig2, ax2 = plt.subplots()
+        gender_list = [gender_df['Count'].iloc[0], gender_df['Count'].iloc[1]]
+        ax2.pie(list(gender_list), labels = gender_df['Gender'], autopct='%1.1f%%',
+                    shadow=True, startangle=90)
+        st.write('## Gender Distribution of Cases')
+        st.pyplot(fig2)
+    
+    with col6:
+        hospitalized_dict = full_df['Hospitalised (Y/N/NA)'].value_counts().to_dict()
+        hospitalized_dict = {'Hospitalized': [hospitalized_dict['Y']], 'Not Hospitalized': [hospitalized_dict['N']]}
+        
+        hospitalized = hospitalized_dict['Hospitalized']
+        not_hospitalized = hospitalized_dict['Not Hospitalized']
+        hospitalized_df = pd.DataFrame({'Status': ['Hospitalized', 'Not Hospitalized'], 'Count': [hospitalized, not_hospitalized]})
+        
+        st.write('## Hospitalization Rates')
+        fig3, ax3 = plt.subplots()
+        ax3.bar(hospitalized_df['Status'], hospitalized_df['Count'], color = 'teal')
+        st.pyplot(fig3)
+        
+
+    st.write('Note: Gender and hospitalization data are not available for some cases, so the true distribution may vary slightly.')
 
 # ---------- Maps Page ---------- #
 if selected == '"Maps"' or selected == 'Maps':
