@@ -9,9 +9,9 @@ import altair as alt
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 import geopandas
-from bs4 import BeautifulSoup
-import requests
-import urllib
+# from bs4 import BeautifulSoup
+# import requests
+# import urllib
 
 # Modules
 from data_loader import *
