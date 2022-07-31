@@ -1,24 +1,25 @@
-from itertools import count
+# Libraries
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import matplotlib.dates as mdates
 import streamlit as st
 import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
-import pydeck as pdk
 import geopandas
+from bs4 import BeautifulSoup
+import requests
+import urllib
+
+# Modules
+from data_loader import *
 
 
-# Acknowledgements:
-# cases data: https://www.cdc.gov/poxvirus/monkeypox/response/2022/world-map.html
 
 # -- CHANGES TO MAKE -- #
 # check box to 'include suspected cases' which uses the 'Status' column in data
-
 
 
 # ---------- Setting Up Webpage ---------- #
@@ -32,7 +33,6 @@ hide_st_style = """
             """
             #MainMenu {visibility: hidden;}
             #header {visibility: hidden;}
-
 
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
@@ -48,43 +48,16 @@ selected = option_menu(None, ['Home', 'Maps', 'Sources'],
 
 #### Add Resources to first list and 'clipboard-check' to second list
 
-
-# ---------- Loading Data --------- #
-# Saves cleaned data in cache to prevent reloading it every page refresh
-@st.cache
-def load_full_data():
-    df = pd.read_csv('https://raw.githubusercontent.com/globaldothealth/monkeypox/main/latest.csv')
-
-    df.drop(['Source', 'Source_II', 'Source_III', 'Source_IV', 'Source_V', 'Source_VI', 'Source_VII',
-        'ID', 'Contact_ID', 'Contact_comment', 'Date_last_modified'], axis = 1, inplace = True)
-    df = df[(df['Status'] == 'confirmed') | (df['Status'] == 'suspected')]
-
-    return df
-
-@st.cache
-def load_cumulative_cases():
-    df = pd.read_csv('https://raw.githubusercontent.com/globaldothealth/monkeypox/main/timeseries-country-confirmed.csv')
-    
-    # Formatting information for readability
-    df.rename(columns = {'Cumulative_cases': 'Cumulative Cases'}, inplace = True)
-    return df
-
-@st.cache
-def load_total_cases():
-    df = pd.read_csv('https://raw.githubusercontent.com/globaldothealth/monkeypox/main/timeseries-confirmed.csv')
-
-    # Formatting information for readability
-    df.rename(columns = {'Cumulative_cases': 'Cumulative Cases'}, inplace = True)
-    return df
+# ---------- Loading Data ---------- #
 
 # Initializing dataframes 
-full_df = load_full_data() # Detailed data for each case
-cum_df = load_cumulative_cases() # Cumulative case data for each country
-total_df = load_total_cases() # Cumulative global case data
+dataframes = load_all()
+full_df = dataframes[0]
+cum_df = dataframes[1]
+total_df = dataframes[2]
 
 # Gets date data was last updated
-date_df = pd.to_datetime(cum_df['Date'])
-date_df = date_df.sort_values(ascending = False)
+date_df = dataframes[3]
 last_updated = list(date_df.dt.strftime('%b %d, %Y').head())[0]
 
 # Dataframe with countries and their current cases
@@ -105,13 +78,12 @@ countries = st.sidebar.multiselect('Country Selection',
 )
 
 
-
 # ---------- Home Page ---------- #
 if selected == '"Home"' or selected == 'Home':
 
     # Page Header
     st.write('# Current Monkeypox (MPXV) Cases')
-    st.write(f'Data last updated {last_updated}.')
+    st.write(f'Data last updated {last_updated}. (Updates Mon-Fri)')
     st.write('') 
 
     # Gets data for user-selected countries
@@ -184,9 +156,7 @@ if selected == '"Home"' or selected == 'Home':
                 country = 'England'
             daily_increase[country] = country_data.tail()['Cases'].loc[country_data.index[-1]]
         
-        k = daily_increase.keys()
-        v = daily_increase.values()
-        increase_data = {'Country': k, 'Increase From Yesterday': v}
+        increase_data = {'Country': daily_increase.keys(), 'Increase From Yesterday': daily_increase.values()}
         daily_increase = pd.DataFrame.from_dict(increase_data)
 
         st.write('## Cumulative Case Table')
@@ -197,12 +167,11 @@ if selected == '"Home"' or selected == 'Home':
         merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                                  ',
             right_on = 'Country')
         merged = merged.drop('Country', axis = 1)
-        
         merged.index += 1
 
 
         gb = GridOptionsBuilder.from_dataframe(merged)
-        #gb.configure_pagination(paginationAutoPageSize=True) #Add pagination
+        #gb.configure_pagination(paginationAutoPageSize=True) #Add pages
         gb.configure_side_bar() #Add a sidebar
         gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren="Group checkbox select children") #Enable multi-row selection
         gridOptions = gb.build()
@@ -222,11 +191,9 @@ if selected == '"Home"' or selected == 'Home':
 
         data = grid_response['data']
         selected = grid_response['selected_rows'] 
-        selected_df = pd.DataFrame(selected) #Pass the selected rows to a new dataframe df
+        selected_df = pd.DataFrame(selected) #Pass the selected rows to a new dataframe
         
- 
-
-    # Pie chart
+    # Direct Comparison Table
     with col2: 
         if selected_df.shape[0] > 0:
             st.write('')
@@ -252,6 +219,7 @@ if selected == '"Home"' or selected == 'Home':
 
     col3, col4 = st.columns(2)
 
+    # Total global cases graph
     with col3:
         # Removing early dates with almost no cases
         total_df = total_df.iloc[60:]
@@ -279,7 +247,7 @@ if selected == '"Home"' or selected == 'Home':
         fig.tight_layout()
         st.pyplot(fig)
 
-
+    # Global cases pie chart
     with col4:
         other_slice = sum([val for val in values[9:]])
         names = names[:9]
@@ -299,11 +267,11 @@ if selected == '"Home"' or selected == 'Home':
     
     col5, col6 = st.columns(2)
 
+    # Gender distribution pie chart
     with col5:
         gender_data = full_df[full_df['Gender'].isin(('male', 'female'))]['Gender']
         males = len([person for person in gender_data.to_dict().values() if person == 'male'])
         females = len([person for person in gender_data.to_dict().values() if person == 'female'])
-        gender_dict = {'Male': [males], 'Female': [females]}
         gender_df = pd.DataFrame({'Gender': ['Male', 'Female'], 'Count': [males, females]})
         
         fig2, ax2 = plt.subplots()
@@ -311,22 +279,26 @@ if selected == '"Home"' or selected == 'Home':
         ax2.pie(list(gender_list), labels = gender_df['Gender'], autopct='%1.1f%%',
                     shadow=True, startangle=90)
         st.write('## Gender Distribution of Cases')
+        fig2.set_figheight(7)
         st.pyplot(fig2)
     
+    # Hospitalization bar chart
     with col6:
         hospitalized_dict = full_df['Hospitalised (Y/N/NA)'].value_counts().to_dict()
-        hospitalized_dict = {'Hospitalized': [hospitalized_dict['Y']], 'Not Hospitalized': [hospitalized_dict['N']]}
-        
-        hospitalized = hospitalized_dict['Hospitalized']
-        not_hospitalized = hospitalized_dict['Not Hospitalized']
-        hospitalized_df = pd.DataFrame({'Status': ['Hospitalized', 'Not Hospitalized'], 'Count': [hospitalized, not_hospitalized]})
+        hospitalized_df = pd.DataFrame({'Status': ['Hospitalized', 'Not Hospitalized'], 'Count': [[hospitalized_dict['Y']], [hospitalized_dict['N']]]})
         
         st.write('## Hospitalization Rates')
         fig3, ax3 = plt.subplots()
         ax3.bar(hospitalized_df['Status'], hospitalized_df['Count'], color = 'teal')
+        ax3.set_ylabel('Number of People')
+
+        # Changing graph height based on current numbers
+        hospital_graph_max = max([x[0] for x in hospitalized_df['Count'].to_dict().values()])
+        ax3.set(ylim=(0, hospital_graph_max * 1.5))
+
+        fig3.set_figheight(7)
         st.pyplot(fig3)
         
-
     st.write('Note: Gender and hospitalization data are not available for some cases, so the true distribution may vary slightly.')
 
 # ---------- Maps Page ---------- #
@@ -345,7 +317,6 @@ if selected == '"Maps"' or selected == 'Maps':
     map_df.drop([map_df.index[239]], inplace = True)
     
     # Fixing spelling differences between data sources
-
     map_df['NAME'] = np.where(map_df['NAME'] == 'United States of America', 'United States', map_df['NAME'])
     map_df['NAME'] = np.where(map_df['NAME'] == 'Bosnia and Herz.', 'Bosnia And Herzegovina', map_df['NAME'])
     map_df['NAME'] = np.where(map_df['NAME'] == 'Congo', 'Republic of Congo', map_df['NAME'])
@@ -365,16 +336,10 @@ if selected == '"Maps"' or selected == 'Maps':
     other = pd.DataFrame(list(other.items()), columns = ['Country', 'Cases'])
     other.loc[len(other.index)] = ['United Kingdom', uk_new]
 
-
-
-    fix_names = [country for country in other if country not in base]
-    
-
     
     merged = map_df.merge(other, how = 'left', left_on = 'NAME',
         right_on = 'Country')
     merged['Cases'] = merged['Cases'].fillna(0)
-
 
 
     # Set range for choropleth values
@@ -388,7 +353,6 @@ if selected == '"Maps"' or selected == 'Maps':
     ax.axis('off')
 
     ax.set_title('Total Monkeypox Cases per Country', fontdict={'fontsize': '25', 'fontweight' : '4'})
-
 
 
     # colorbar legend
@@ -409,6 +373,17 @@ if selected == '"Maps"' or selected == 'Maps':
     st.write('## U.S. Data')
     st.write('Coming soon')
     # ALSO DO SAME THING BUT FOR US STATES DATA
+    # HTTP request
+    url = 'https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html'
+    html = urllib.request.urlopen(url)
+
+    
+    result = requests.get(url)
+    #doc = BeautifulSoup(result.content, 'html.parser')
+    doc = BeautifulSoup(html)
+    
+    num = doc.findAll('td', {'role': 'gridcell'})
+
 
 
 # ---------- Sources Page ---------- #
@@ -449,8 +424,6 @@ st.sidebar.write('')
 st.sidebar.write('')
 st.sidebar.write('')
 
-
-#st.sidebar.write('Created by Anthony Cusimano')
 
 
 # [theme]
