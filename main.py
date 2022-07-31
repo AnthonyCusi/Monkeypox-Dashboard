@@ -374,15 +374,15 @@ if selected == '"Maps"' or selected == 'Maps':
     st.write('Coming soon')
     # ALSO DO SAME THING BUT FOR US STATES DATA
     # HTTP request
-    url = 'https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html'
-    html = urllib.request.urlopen(url)
+    # url = 'https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html'
+    # html = urllib.request.urlopen(url)
 
     
-    result = requests.get(url)
-    #doc = BeautifulSoup(result.content, 'html.parser')
-    doc = BeautifulSoup(html)
+    # result = requests.get(url)
+    # #doc = BeautifulSoup(result.content, 'html.parser')
+    # doc = BeautifulSoup(html)
     
-    num = doc.findAll('td', {'role': 'gridcell'})
+    # num = doc.findAll('td', {'role': 'gridcell'})
 
 
 
