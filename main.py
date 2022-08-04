@@ -7,15 +7,15 @@ import streamlit as st
 import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
-from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
+from st_aggrid import GridOptionsBuilder, AgGrid
 import geopandas
 # from bs4 import BeautifulSoup
 # import requests
 # import urllib
 
 # Modules
-from data_loader import *
-
+import data_loader
+import charts
 
 
 # -- CHANGES TO MAKE -- #
@@ -23,7 +23,7 @@ from data_loader import *
 
 
 # ---------- Setting Up Webpage ---------- #
-st.set_page_config(page_title = 'Monkeypox Visualization', page_icon = ':bar_chart:', layout = 'wide')
+st.set_page_config(page_title = 'Monkeypox Dashboard', page_icon = ':bar_chart:', layout = 'wide')
 
 # Hide hamburger menu
 hide_st_style = """
@@ -46,12 +46,12 @@ selected = option_menu(None, ['Home', 'Maps', 'Sources'],
     styles = {'nav-link': {'--hover-color': '#8E6FF9'}}
 )
 
-#### Add Resources to first list and 'clipboard-check' to second list
+    #  Add 'Resources' to first list and 'clipboard-check' to second list
 
 # ---------- Loading Data ---------- #
 
 # Initializing dataframes 
-dataframes = load_all()
+dataframes = data_loader.load_all()
 full_df = dataframes[0]
 cum_df = dataframes[1]
 total_df = dataframes[2]
@@ -88,19 +88,20 @@ if selected == '"Home"' or selected == 'Home':
 
     # Gets data for user-selected countries
     selection_df = cum_df[cum_df['Country'].isin(countries)]
+   
 
     # Line chart
     nearest = alt.selection(type='single', nearest=True, on='mouseover',
                             fields=['Date'], empty='none')
 
     line_chart = alt.Chart(selection_df).mark_line(interpolate = 'basis').encode(
-        x = alt.X('Date', axis = alt.Axis(tickCount = 5)),
+        x = alt.X('Date', axis = alt.Axis(title = 'Date', tickMinStep = 2)),
         y = 'Cumulative Cases',
         color = 'Country'
     )
 
     selectors = alt.Chart(selection_df).mark_point().encode(
-        x='Date',
+        x = alt.X('Date', axis = alt.Axis(title = 'Date', tickMinStep = 2)),
         opacity=alt.value(0),
     ).add_selection(
         nearest
@@ -115,7 +116,7 @@ if selected == '"Home"' or selected == 'Home':
     )
 
     rules = alt.Chart(selection_df).mark_rule(color='gray').encode(
-        x='Date',
+        x = alt.X('Date', axis = alt.Axis(title = 'Date', tickMinStep = 2))
     ).transform_filter(
         nearest
     )
@@ -143,36 +144,17 @@ if selected == '"Home"' or selected == 'Home':
         values.append(cases)
         
     col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
+    col5, col6 = st.columns(2)
 
     # Cumulative cases table
     with col1:
-        daily_increase = dict()
-
-        for country in cum_df['Country'].unique():
-            country_data = cum_df[cum_df['Country'] == country]
-            if country == 'Democratic Republic Of The Congo':
-                country = 'Dem. Rep. Congo'
-            if country == 'United Kingdom':
-                country = 'England'
-            daily_increase[country] = country_data.tail()['Cases'].loc[country_data.index[-1]]
-        
-        increase_data = {'Country': daily_increase.keys(), 'Increase From Yesterday': daily_increase.values()}
-        daily_increase = pd.DataFrame.from_dict(increase_data)
-
         st.write('## Cumulative Case Table')
         st.write('#### Select countries to directly compare:')
-        counts_data = {'Country Name                                  ': names, 'Cases  ': values}
-        counts_df = pd.DataFrame.from_dict(counts_data)
-
-        merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                                  ',
-            right_on = 'Country')
-        merged = merged.drop('Country', axis = 1)
-        merged.index += 1
-
+        merged = charts.get_daily_increases(cum_df, names, values)
 
         gb = GridOptionsBuilder.from_dataframe(merged)
-        #gb.configure_pagination(paginationAutoPageSize=True) #Add pages
-        gb.configure_side_bar() #Add a sidebar
+        gb.configure_side_bar()
         gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren="Group checkbox select children") #Enable multi-row selection
         gridOptions = gb.build()
 
@@ -189,7 +171,6 @@ if selected == '"Home"' or selected == 'Home':
             reload_data=True
         )
 
-        data = grid_response['data']
         selected = grid_response['selected_rows'] 
         selected_df = pd.DataFrame(selected) #Pass the selected rows to a new dataframe
         
@@ -205,101 +186,42 @@ if selected == '"Home"' or selected == 'Home':
             gb2 = GridOptionsBuilder.from_dataframe(selected_df)
             gb2.configure_side_bar()
             grid2Options = gb2.build()
-
             grid2_response = AgGrid(
                 selected_df,
-                #gridOptions=grid2Options,
                 data_return_mode='AS_INPUT', 
-                update_mode='MODEL_CHANGED', 
-                #fit_columns_on_grid_load=False,
-                theme='dark',
-                #enable_enterprise_modules=True,
-                height=300
+                update_mode='MODEL_CHANGED', theme='dark', height=300
             )
 
-    col3, col4 = st.columns(2)
-
     # Total global cases graph
-    with col3:
-        # Removing early dates with almost no cases
-        total_df = total_df.iloc[60:]
-        
+    with col3: 
         st.write('## Total Cases Globally')
-        fig, ax = plt.subplots()
-        ax.plot(total_df['Date'], total_df['Cumulative Cases'], label = 'Total Cases', color = 'purple')
-    
-        
-        ax.set_xlabel('Date')
-        ax.set_ylabel('Total Cases', color = 'purple')
-        ax.tick_params(axis = 'y', labelcolor = 'purple')
-
-        
-        ax2 = ax.twinx()
-        ax2.bar(total_df['Date'], total_df['Cases'], label = 'Daily Increase', color = 'teal')
-        # ax.yaxis.set_label_position('left')
-        # ax.yaxis.tick_left()
-        ax2.set_ylabel('Daily Increase', color = 'teal')
-        ax2.set(ylim=(0, 5000))
-
-        ax2.tick_params(axis = 'y', labelcolor = 'teal')
-
-
-        fig.tight_layout()
+        global_case_graph = charts.global_case_graph(total_df)
+        fig, ax, ax2 = global_case_graph[0], global_case_graph[1], global_case_graph[2]
         st.pyplot(fig)
 
     # Global cases pie chart
     with col4:
-        other_slice = sum([val for val in values[9:]])
-        names = names[:9]
-        values = values[:9]
-        names.append('Other')
-        values.append(other_slice)
-
-        fig1, ax1 = plt.subplots()
-        ax1.pie(values, labels = names, autopct='%1.1f%%',
-                    shadow=True, startangle=90)
-
-        # Setting background color
-        ax1.set_facecolor('#99c2ff')
-
         st.write('## Breakdown of Global Cases')
-        st.pyplot(fig1)
-    
-    col5, col6 = st.columns(2)
+        global_pie_chart = charts.global_pie_chart(names, values)
+        fig, ax = global_pie_chart[0], global_pie_chart[1]
+        st.pyplot(fig)
 
     # Gender distribution pie chart
     with col5:
-        gender_data = full_df[full_df['Gender'].isin(('male', 'female'))]['Gender']
-        males = len([person for person in gender_data.to_dict().values() if person == 'male'])
-        females = len([person for person in gender_data.to_dict().values() if person == 'female'])
-        gender_df = pd.DataFrame({'Gender': ['Male', 'Female'], 'Count': [males, females]})
-        
-        fig2, ax2 = plt.subplots()
-        gender_list = [gender_df['Count'].iloc[0], gender_df['Count'].iloc[1]]
-        ax2.pie(list(gender_list), labels = gender_df['Gender'], autopct='%1.1f%%',
-                    shadow=True, startangle=90)
         st.write('## Gender Distribution of Cases')
-        fig2.set_figheight(7)
-        st.pyplot(fig2)
+        gender_chart = charts.gender_chart(full_df)
+        fig, ax = gender_chart[0], gender_chart[1]
+        st.pyplot(fig)
     
     # Hospitalization bar chart
     with col6:
-        hospitalized_dict = full_df['Hospitalised (Y/N/NA)'].value_counts().to_dict()
-        hospitalized_df = pd.DataFrame({'Status': ['Hospitalized', 'Not Hospitalized'], 'Count': [[hospitalized_dict['Y']], [hospitalized_dict['N']]]})
-        
         st.write('## Hospitalization Rates')
-        fig3, ax3 = plt.subplots()
-        ax3.bar(hospitalized_df['Status'], hospitalized_df['Count'], color = 'teal')
-        ax3.set_ylabel('Number of People')
-
-        # Changing graph height based on current numbers
-        hospital_graph_max = max([x[0] for x in hospitalized_df['Count'].to_dict().values()])
-        ax3.set(ylim=(0, hospital_graph_max * 1.5))
-
-        fig3.set_figheight(7)
-        st.pyplot(fig3)
+        hosp_chart = charts.hospitalization_chart(full_df)
+        fig, ax = hosp_chart[0], hosp_chart[1]
+        st.pyplot(fig)
         
-    st.write('Note: Gender and hospitalization data are not available for some cases, so the true distribution may vary slightly.')
+    st.write('Note: Gender and hospitalization data were not reported for all cases, \
+        so the true distribution may vary slightly.')
 
 # ---------- Maps Page ---------- #
 if selected == '"Maps"' or selected == 'Maps':
@@ -372,12 +294,11 @@ if selected == '"Maps"' or selected == 'Maps':
 
     st.write('## U.S. Data')
     st.write('Coming soon')
-    # ALSO DO SAME THING BUT FOR US STATES DATA
+
     # HTTP request
     # url = 'https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html'
     # html = urllib.request.urlopen(url)
 
-    
     # result = requests.get(url)
     # #doc = BeautifulSoup(result.content, 'html.parser')
     # doc = BeautifulSoup(html)
@@ -411,6 +332,8 @@ if selected in ('"Sources"', 'Sources'):
     st.write('')
     st.write('---------------------------------------------------------')
     st.write('Monkeypox Dashboard was created by Anthony Cusimano.')
+    st.write('Contribute to the repository! https://github.com/AnthonyCusi/Monkeypox-Dashboard')
+    st.write('')
     st.write('Thank you for visiting this page, and please stay safe!')
 
 
