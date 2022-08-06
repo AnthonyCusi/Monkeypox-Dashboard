@@ -74,8 +74,11 @@ def global_pie_chart(countries: list[str], cases: list[int]):
     cases.append(other_slice)
 
     fig, ax = plt.subplots()
+    colors = ['purple', 'mediumorchid', 'lightpink', 'cornflowerblue', 'paleturquoise', 'palegreen', 'olivedrab',
+        'mediumturquoise', 'khaki', 'teal']
+
     ax.pie(cases, labels = countries, autopct='%1.1f%%',
-                shadow=False, startangle=90)
+                shadow=False, startangle=90, colors = colors)
     # ax.set_facecolor('#99c2ff')
 
     return (fig, ax)
@@ -93,8 +96,9 @@ def gender_chart(df: pd.DataFrame):
     fig, ax = plt.subplots()
     fig.set_figheight(7)
     gender_list = [gender_df['Count'].iloc[0], gender_df['Count'].iloc[1]]
+    colors = ['teal', 'purple']
     ax.pie(list(gender_list), labels = gender_df['Gender'], autopct='%1.1f%%',
-                shadow=False, startangle=90)
+                shadow=False, startangle=90, colors = colors)
 
     return (fig, ax)
 
