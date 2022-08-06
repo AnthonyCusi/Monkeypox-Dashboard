@@ -231,7 +231,8 @@ if selected == '"Maps"' or selected == 'Maps':
     st.write(f'Data last updated {last_updated}.')
     st.write("") 
 
-    map_df = geopandas.read_file('land_data/ne_50m_admin_0_countries.shp')
+    # WORLD MAP
+    map_df = geopandas.read_file('land_data/country_map/ne_50m_admin_0_countries.shp')
     map_df = map_df[['NAME', 'geometry']]
     st.set_option('deprecation.showPyplotGlobalUse', False)
 
@@ -278,7 +279,7 @@ if selected == '"Maps"' or selected == 'Maps':
 
 
     # colorbar legend
-    sm = plt.cm.ScalarMappable(cmap='Reds', norm=plt.Normalize(vmin=min, vmax=max))
+    sm = plt.cm.ScalarMappable(cmap='Purples', norm=plt.Normalize(vmin=min, vmax=max))
 
     # empty array for data
     sm.set_array([])
@@ -286,24 +287,88 @@ if selected == '"Maps"' or selected == 'Maps':
     # Displaying colorball legend and map 
     fig.colorbar(sm, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 40)
 
-    merged.plot(column='Cases', cmap='Reds', linewidth=0.8, ax=ax, edgecolor='0.7')
-
+    merged.plot(column='Cases', cmap='Purples', linewidth=0.8, ax=ax, edgecolor='0.7')
 
     st.write('## Global Data')
     st.pyplot()
+    st.write('')
+    st.write('')
 
+
+    # US MAP
     st.write('## U.S. Data')
-    st.write('Coming soon')
 
-    # HTTP request
-    # url = 'https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html'
-    # html = urllib.request.urlopen(url)
-
-    # result = requests.get(url)
-    # #doc = BeautifulSoup(result.content, 'html.parser')
-    # doc = BeautifulSoup(html)
+    us_map_df = geopandas.read_file('land_data/us_map/cb_2018_us_state_5m.shp')
+    us_map_df = us_map_df[['NAME', 'geometry']]
     
-    # num = doc.findAll('td', {'role': 'gridcell'})
+    state_cases = pd.read_csv('https://raw.githubusercontent.com/gridviz/monkeypox/main/data/processed/monkeypox_cases_states_cdc_latest.csv')
+    state_cases = state_cases[['state', 'cases']]
+
+    us_merged = us_map_df.merge(state_cases, how = 'left', left_on = 'NAME',
+        right_on = 'state')
+    
+    us_merged.dropna(inplace = True)
+
+    # Set range for choropleth values
+    # change max to the current max cases
+    min2, max2 = 0, round(us_merged['cases'].max(), -3)
+
+    # create figure and axes for Matplotlib
+    fig2, ax2 = plt.subplots(1, figsize=(30, 15))
+ 
+    # remove the axis
+    ax2.axis('off')
+
+    ax2.set_title('Total Monkeypox Cases per State (Contiguous U.S.)', fontdict={'fontsize': '25', 'fontweight' : '4'})
+
+    bounds = [-129, 25, -61, 50]
+
+
+    xlim = ([bounds[0], bounds[2]])
+    ylim = ([bounds[1],  bounds[3]])
+
+    ax2.set_xlim(xlim)
+    ax2.set_ylim(ylim)
+
+    # colorbar legend
+    sm2 = plt.cm.ScalarMappable(cmap='Purples', norm=plt.Normalize(vmin=min2, vmax=max2))
+
+    # empty array for data
+    sm2.set_array([])
+
+    # Displaying colorball legend and map 
+    fig2.colorbar(sm2, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 40)
+
+    # Labeling states
+    manual_list = ['Louisiana', 'Mississippi', 'West Virginia', 'Virginia', 'District of Columbia', 'Delaware']
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = x['geometry'].centroid.coords[0], 
+        ha = 'center', fontsize = 14) if x.NAME not in manual_list else '', axis = 1)
+    
+    # Manual label adjustents
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.5), 
+        ha = 'center', fontsize = 14) if x.NAME == 'Louisiana' else '', axis = 1)
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
+        ha = 'center', fontsize = 14) if x.NAME == 'Mississippi' else '', axis = 1)
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
+        ha = 'center', fontsize = 14) if x.NAME == 'West Virginia' else '', axis = 1)
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
+        ha = 'center', fontsize = 14) if x.NAME == 'Virginia' else '', axis = 1)
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + ': ' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0] + 10, x['geometry'].centroid.coords[0][1]), 
+        ha = 'center', fontsize = 14) if x.NAME == 'District of Columbia' else '', axis = 1)
+    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + ': ' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0] + 8.2, x['geometry'].centroid.coords[0][1] - 1.4), 
+        ha = 'center', fontsize = 14) if x.NAME == 'Delaware' else '', axis = 1)
+
+    us_merged.plot(column='cases', cmap='Purples', linewidth=0.8, ax=ax2, edgecolor='0.7')
+
+    st.pyplot()
+
+
+
+
+   
+
+
+
 
 
 
@@ -316,15 +381,19 @@ if selected in ('"Sources"', 'Sources'):
     st.write('Data on Monkeypox cases are provided by Global.health, and can be found at the following repository:')
     st.write(f'https://github.com/globaldothealth/monkeypox (Last accessed: {last_updated})')
     st.write('')
+    st.write('Case counts by U.S. state is provided by the CDC:')
+    st.write('https://www.cdc.gov/poxvirus/monkeypox/response/2022/us-map.html')
     st.write('')
     st.write('Geographic (GIS) data for map building is provided by Natural Earth at the following link:')
     st.write('http://www.naturalearthdata.com/downloads/50m-cultural-vectors/')
     st.write('')
-    st.write('')    
+    st.write('Geographic data for the US map is provided by the United States Census:')  
+    st.write('https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html')  
+    st.write('')
+    st.write('')
+    st.write('')
     st.write('')
     st.write('All data is used with permission under a CC-BY-4.0 license.')
-    st.write('')
-    st.write('')
     st.write('')
     st.write('')
     st.write('')
