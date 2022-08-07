@@ -16,6 +16,7 @@ import geopandas
 # Modules
 import data_loader
 import charts
+import maps
 
 
 # -- CHANGES TO MAKE -- #
@@ -82,10 +83,13 @@ countries = st.sidebar.multiselect('Country Selection',
 if selected == '"Home"' or selected == 'Home':
 
     # Page Header
-    st.write('# Current Monkeypox (MPXV) Cases')
+    cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
+    curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
+
+    st.write('# Current Monkeypox (MPXV) Cases: ' + curr_total)
     st.write(f'Data last updated {last_updated}. (Updates Mon-Fri)')
     st.write('') 
-
+    
     # Gets data for user-selected countries
     selection_df = cum_df[cum_df['Country'].isin(countries)]
    
@@ -159,16 +163,10 @@ if selected == '"Home"' or selected == 'Home':
         gridOptions = gb.build()
 
         grid_response = AgGrid(
-            merged,
-            gridOptions=gridOptions,
-            data_return_mode='AS_INPUT', 
-            update_mode='MODEL_CHANGED', 
+            merged, gridOptions=gridOptions,
+            data_return_mode='AS_INPUT', update_mode='MODEL_CHANGED', 
             fit_columns_on_grid_load=False,
-            theme='dark',
-            enable_enterprise_modules=True,
-            height=350, 
-            width='100%',
-            reload_data=True
+            theme='dark', enable_enterprise_modules=True, height=350, width='100%', reload_data=True
         )
 
         selected = grid_response['selected_rows'] 
@@ -231,145 +229,19 @@ if selected == '"Maps"' or selected == 'Maps':
     st.write(f'Data last updated {last_updated}.')
     st.write("") 
 
-    # WORLD MAP
-    map_df = geopandas.read_file('land_data/country_map/ne_50m_admin_0_countries.shp')
-    map_df = map_df[['NAME', 'geometry']]
-    st.set_option('deprecation.showPyplotGlobalUse', False)
-
-    # Removing Antarctica from map
-    map_df.drop([map_df.index[239]], inplace = True)
-    
-    # Fixing spelling differences between data sources
-    map_df['NAME'] = np.where(map_df['NAME'] == 'United States of America', 'United States', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Bosnia and Herz.', 'Bosnia And Herzegovina', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Congo', 'Republic of Congo', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Dem. Rep. Congo', 'Democratic Republic Of The Congo', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Dominican Rep.', 'Dominican Republic', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Central African Rep.', 'Central African Republic', map_df['NAME'])
-    map_df['NAME'] = np.where(map_df['NAME'] == 'Czechia', 'Czech Republic', map_df['NAME'])
-
-    
-    base = map_df['NAME'].unique()
-
-    other = country_counts['Country'].to_dict()
-    
-    uk_current = other['England']
-    uk_new = sum([other[country] for country in other if country in ('England', 'Scotland', 'Wales', 'Northern Ireland', 'Cayman Islands')])
-    
-    other = pd.DataFrame(list(other.items()), columns = ['Country', 'Cases'])
-    other.loc[len(other.index)] = ['United Kingdom', uk_new]
-
-    
-    merged = map_df.merge(other, how = 'left', left_on = 'NAME',
-        right_on = 'Country')
-    merged['Cases'] = merged['Cases'].fillna(0)
-
-
-    # Set range for choropleth values
-    # change max to the current max cases
-    min, max = 0, round(max(merged['Cases']), -3) 
-
-    # create figure and axes for Matplotlib
-    fig, ax = plt.subplots(1, figsize=(30, 10))
- 
-    # remove the axis
-    ax.axis('off')
-
-    ax.set_title('Total Monkeypox Cases per Country', fontdict={'fontsize': '25', 'fontweight' : '4'})
-
-
-    # colorbar legend
-    sm = plt.cm.ScalarMappable(cmap='Purples', norm=plt.Normalize(vmin=min, vmax=max))
-
-    # empty array for data
-    sm.set_array([])
-
-    # Displaying colorball legend and map 
-    fig.colorbar(sm, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 40)
-
-    merged.plot(column='Cases', cmap='Purples', linewidth=0.8, ax=ax, edgecolor='0.7')
-
+    # World map
     st.write('## Global Data')
+    merged, fig, ax, sm = maps.plot_world(country_counts)
+    merged.plot(column='Cases', cmap='cool', linewidth=0.8, ax=ax, edgecolor='0.7')
     st.pyplot()
     st.write('')
     st.write('')
 
-
-    # US MAP
+    # US map
     st.write('## U.S. Data')
-
-    us_map_df = geopandas.read_file('land_data/us_map/cb_2018_us_state_5m.shp')
-    us_map_df = us_map_df[['NAME', 'geometry']]
-    
-    state_cases = pd.read_csv('https://raw.githubusercontent.com/gridviz/monkeypox/main/data/processed/monkeypox_cases_states_cdc_latest.csv')
-    state_cases = state_cases[['state', 'cases']]
-
-    us_merged = us_map_df.merge(state_cases, how = 'left', left_on = 'NAME',
-        right_on = 'state')
-    
-    us_merged.dropna(inplace = True)
-
-    # Set range for choropleth values
-    # change max to the current max cases
-    min2, max2 = 0, round(us_merged['cases'].max(), -3)
-
-    # create figure and axes for Matplotlib
-    fig2, ax2 = plt.subplots(1, figsize=(30, 15))
- 
-    # remove the axis
-    ax2.axis('off')
-
-    ax2.set_title('Total Monkeypox Cases per State (Contiguous U.S.)', fontdict={'fontsize': '25', 'fontweight' : '4'})
-
-    bounds = [-129, 25, -61, 50]
-
-
-    xlim = ([bounds[0], bounds[2]])
-    ylim = ([bounds[1],  bounds[3]])
-
-    ax2.set_xlim(xlim)
-    ax2.set_ylim(ylim)
-
-    # colorbar legend
-    sm2 = plt.cm.ScalarMappable(cmap='Purples', norm=plt.Normalize(vmin=min2, vmax=max2))
-
-    # empty array for data
-    sm2.set_array([])
-
-    # Displaying colorball legend and map 
-    fig2.colorbar(sm2, orientation="horizontal", fraction=0.036, pad=0.1, aspect = 40)
-
-    # Labeling states
-    manual_list = ['Louisiana', 'Mississippi', 'West Virginia', 'Virginia', 'District of Columbia', 'Delaware']
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = x['geometry'].centroid.coords[0], 
-        ha = 'center', fontsize = 14) if x.NAME not in manual_list else '', axis = 1)
-    
-    # Manual label adjustents
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.5), 
-        ha = 'center', fontsize = 14) if x.NAME == 'Louisiana' else '', axis = 1)
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
-        ha = 'center', fontsize = 14) if x.NAME == 'Mississippi' else '', axis = 1)
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
-        ha = 'center', fontsize = 14) if x.NAME == 'West Virginia' else '', axis = 1)
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + '\n' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1] - 0.75), 
-        ha = 'center', fontsize = 14) if x.NAME == 'Virginia' else '', axis = 1)
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + ': ' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0] + 10, x['geometry'].centroid.coords[0][1]), 
-        ha = 'center', fontsize = 14) if x.NAME == 'District of Columbia' else '', axis = 1)
-    us_merged.apply(lambda x: ax2.annotate(text = x.NAME + ': ' + str(int(x.cases)), xy = (x['geometry'].centroid.coords[0][0] + 8.2, x['geometry'].centroid.coords[0][1] - 1.4), 
-        ha = 'center', fontsize = 14) if x.NAME == 'Delaware' else '', axis = 1)
-
-    us_merged.plot(column='cases', cmap='Purples', linewidth=0.8, ax=ax2, edgecolor='0.7')
-
+    us_merged, fig, ax, sm = maps.plot_us()
+    us_merged.plot(column='cases', cmap='cool', linewidth=0.8, ax=ax, edgecolor='0.7')
     st.pyplot()
-
-
-
-
-   
-
-
-
-
 
 
 # ---------- Sources Page ---------- #
