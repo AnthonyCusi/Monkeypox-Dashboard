@@ -73,7 +73,7 @@ def plot_us():
     us_merged.dropna(inplace = True)
 
     # Change max to the current max cases
-    min, max = 0, round(us_merged['cases'].max(), -3)
+    min, max = 0, round(us_merged['cases'].max(), -2)
 
     # Create figure and axes for Matplotlib
     fig, ax = plt.subplots(1, figsize=(30, 15))
