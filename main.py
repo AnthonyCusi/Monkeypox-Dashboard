@@ -8,19 +8,11 @@ import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid
-import geopandas
-# from bs4 import BeautifulSoup
-# import requests
-# import urllib
 
 # Modules
 import data_loader
 import charts
 import maps
-
-
-# -- CHANGES TO MAKE -- #
-# check box to 'include suspected cases' which uses the 'Status' column in data
 
 
 # ---------- Setting Up Webpage ---------- #
@@ -42,13 +34,11 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 st.write('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
 
 # Navigation bar
-selected = option_menu(None, ['Home', 'Maps', 'Sources'], 
-    icons=['bar-chart-line', 'geo-alt', 'info-circle'], 
+selected = option_menu(None, ['Home', 'Maps', 'Resources', 'Sources'], 
+    icons=['bar-chart-line', 'geo-alt', 'heart', 'info-circle'], 
     menu_icon="cast", default_index=0, orientation="horizontal",
     styles = {'nav-link': {'--hover-color': '#8E6FF9'}}
 )
-
-    #  Add 'Resources' to first list and 'clipboard-check' to second list
 
 # ---------- Loading Data ---------- #
 
@@ -79,14 +69,14 @@ countries = st.sidebar.multiselect('Country Selection',
     default = ['United States', 'Germany', 'Spain', 'United Kingdom']
 )
 
+# Getting cumulative cases
+cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
+curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
 
 # ---------- Home Page ---------- #
 if selected == '"Home"' or selected == 'Home':
 
     # Page Header
-    cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
-    curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
-
     st.write('# Current Monkeypox (MPXV) Cases: ' + curr_total)
     st.write(f'Data last updated {last_updated}. (Updates Mon-Fri)')
     st.write('') 
@@ -226,7 +216,7 @@ if selected == '"Home"' or selected == 'Home':
 if selected == '"Maps"' or selected == 'Maps':
 
     # Page Header
-    st.write('# Current Monkeypox (MPXV) Cases')
+    st.write('# Current Monkeypox (MPXV) Cases: ' + curr_total)
     st.write(f'Data last updated {last_updated}.')
     st.write("") 
 
@@ -244,6 +234,41 @@ if selected == '"Maps"' or selected == 'Maps':
     us_merged.plot(column='cases', cmap='cool', linewidth=0.8, ax=ax, edgecolor='0.7')
     st.pyplot()
 
+# ---------- Resources Page ---------- #
+if selected == '"Resources"' or selected == 'Resources':
+    st.write('# Important Information about Monkeypox')
+    st.write('Information gathered from the CDC: https://www.cdc.gov/poxvirus/monkeypox/')
+
+    st.write('### How does Monkeypox spread?')
+    st.markdown("- Direct contact with rash, scabs, or body fluids from a person with monkeypox")
+    st.markdown("- Touching objects, fabrics (clothing, bedding, or towels), and surfaces that have been used by someone with monkeypox")
+    st.markdown("- Sex, hugging, massages, kissing")
+    st.markdown("- Being scratched or bitten by infected animals or eating meat using products from infected animals")
+    st.markdown("- Contact with respiratory secretions")
+    
+    st.write('### What are the main symptoms?')
+    st.markdown("- Rash near genitals")
+    st.markdown("- Fever, chills, swollen lymph nodes, exhaustion")
+    st.markdown("- Muscle aches, backache, headache")
+    st.markdown("- Respiratory symptoms (sore throat, nasal congestion, cough)")
+
+    st.write('### How can I stay safe?')
+    st.markdown("- Limit your number of sexual partners")
+    st.markdown("- Minimize skin-to-skin contact in crowded places like raves and festivals")
+    st.markdown("- Avoid sharing clothing, towels, and other personal items with others")
+    st.markdown("- Contain contaminated linens and clothing after laundering; keep separate from other household members")
+
+    st.write('### Where can I find more information?')
+    st.markdown("- Centers for Disease Control and Prevention (CDC): https://www.cdc.gov/poxvirus/monkeypox/")
+    st.markdown("- Center for Infectious Disease Research and Policy (CIDRAP): https://www.cidrap.umn.edu/monkeypox")
+    st.markdown("- National Coalition for LGBTQ Health: https://healthlgbtq.org/monkeypox/")
+    st.markdown('''
+    <style>
+    [data-testid="stMarkdownContainer"] ul{
+        list-style-position: inside;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
 
 # ---------- Sources Page ---------- #
 if selected in ('"Sources"', 'Sources'):
@@ -263,13 +288,13 @@ if selected in ('"Sources"', 'Sources'):
     st.write('Geographic data for the US map is provided by the United States Census:')  
     st.write('https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html')  
     st.write('')
+    st.write('Information about Monkeypox was gathered from the CDC:')
+    st.write('https://www.cdc.gov/poxvirus/monkeypox/')
+    st.write('')
     st.write('')
     st.write('')
     st.write('')
     st.write('All data is used with permission under a CC-BY-4.0 license.')
-    st.write('')
-    st.write('')
-    st.write('')
     st.write('')
     st.write('')
     st.write('---------------------------------------------------------')
@@ -279,7 +304,6 @@ if selected in ('"Sources"', 'Sources'):
     st.write('Thank you for visiting this page, and please stay safe!')
 
 
-#st.sidebar.write("https://www.linkedin.com/in/anthonycusi/", color = 'gray')
 st.sidebar.write('')
 st.sidebar.write('')
 st.sidebar.write('')
