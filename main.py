@@ -8,6 +8,7 @@ import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid
+from bs4 import BeautifulSoup
 
 # Modules
 import data_loader
@@ -70,8 +71,13 @@ countries = st.sidebar.multiselect('Country Selection',
 )
 
 # Getting cumulative cases
-cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
-curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
+#cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
+#curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
+
+# markup = '''<html><body><div id="container">Div Content</div></body></html>'''
+# soup = BeautifulSoup(markup, 'html.parser')
+# div_bs4 = soup.find('div', {'class': 'bite-value'})
+curr_total = str('{:,}'.format(total_df['Cumulative Cases'][len(total_df)-1]))
 
 # ---------- Home Page ---------- #
 if selected == '"Home"' or selected == 'Home':
