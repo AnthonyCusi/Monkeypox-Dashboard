@@ -139,7 +139,7 @@ def get_daily_increases(df: pd.DataFrame, countries: list[str], cases: list[int]
     daily_increase = {'Country': daily_increase.keys(), 'Increase From Yesterday': daily_increase.values()}
     daily_increase = pd.DataFrame.from_dict(daily_increase)
 
-    counts_data = {'Country Name                                  ': countries, 'Cases  ': cases}
+    counts_data = {'Country Name                                  ': countries, 'Cases  ': [int(i) for i in cases]}
     counts_df = pd.DataFrame.from_dict(counts_data)
 
     merged = counts_df.merge(daily_increase, how = 'left', left_on = 'Country Name                                  ',

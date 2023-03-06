@@ -8,7 +8,6 @@ import numpy as np
 import altair as alt
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid
-from bs4 import BeautifulSoup
 
 # Modules
 import data_loader
@@ -71,12 +70,6 @@ countries = st.sidebar.multiselect('Country Selection',
 )
 
 # Getting cumulative cases
-#cum_cases = pd.read_csv('https://www.cdc.gov/wcms/vizdata/poxvirus/monkeypox/data/MPX-Cases-by-Country.csv')
-#curr_total = str('{:,}'.format(sum(cum_cases['Cases'])))
-
-# markup = '''<html><body><div id="container">Div Content</div></body></html>'''
-# soup = BeautifulSoup(markup, 'html.parser')
-# div_bs4 = soup.find('div', {'class': 'bite-value'})
 curr_total = str('{:,}'.format(total_df['Cumulative Cases'][len(total_df)-1]))
 
 # ---------- Home Page ---------- #
@@ -84,7 +77,7 @@ if selected == '"Home"' or selected == 'Home':
 
     # Page Header
     st.write('# Current Monkeypox (MPXV) Cases: ' + curr_total)
-    st.write(f'Data last updated {last_updated}. (Updates Mon-Fri)')
+    st.write(f'Data last updated {last_updated}. Data has now been deprecated.')
     st.write('') 
     
     # Gets data for user-selected countries
@@ -156,18 +149,18 @@ if selected == '"Home"' or selected == 'Home':
 
         gb = GridOptionsBuilder.from_dataframe(merged)
         gb.configure_side_bar()
-        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren="Group checkbox select children") #Enable multi-row selection
+        gb.configure_selection('multiple', use_checkbox=True, groupSelectsChildren="Group checkbox select children") # Enable multi-row selection
         gridOptions = gb.build()
 
         grid_response = AgGrid(
             merged, gridOptions=gridOptions,
             data_return_mode='AS_INPUT', update_mode='MODEL_CHANGED', 
             fit_columns_on_grid_load=False,
-            theme='dark', enable_enterprise_modules=True, height=350, width='100%', reload_data=True
+            theme='alpine', enable_enterprise_modules=True, height=350, width='100%', reload_data=True
         )
 
         selected = grid_response['selected_rows'] 
-        selected_df = pd.DataFrame(selected) #Pass the selected rows to a new dataframe
+        selected_df = pd.DataFrame(selected) # Pass the selected rows to a new dataframe
         
     # Direct Comparison Table
     with col2: 
@@ -184,7 +177,7 @@ if selected == '"Home"' or selected == 'Home':
             grid2_response = AgGrid(
                 selected_df,
                 data_return_mode='AS_INPUT', 
-                update_mode='MODEL_CHANGED', theme='dark', height=300
+                update_mode='MODEL_CHANGED', theme='alpine', height=300
             )
 
     # Total global cases graph
@@ -223,7 +216,7 @@ if selected == '"Maps"' or selected == 'Maps':
 
     # Page Header
     st.write('# Current Monkeypox (MPXV) Cases: ' + curr_total)
-    st.write(f'Data last updated {last_updated}.')
+    st.write(f'Data last updated {last_updated}. Data has now been deprecated.')
     st.write("") 
 
     # World map
